@@ -31,9 +31,15 @@ import wave
 from typing import Optional
 from dotenv import load_dotenv
 import weave
+import fractions
+from av import AudioFrame
 
 # Go2 WebRTC imports
 from go2_webrtc_driver.webrtc_driver import Go2WebRTCConnection, WebRTCConnectionMethod
+
+# aiortc imports for audio streaming
+from aiortc import AudioStreamTrack
+from aiortc.mediastreams import MediaStreamError
 
 # Pipecat imports
 from pipecat.frames.frames import (
@@ -52,7 +58,6 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.processors.audio.audio_buffer_processor import AudioBufferProcessor
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.cartesia.tts import CartesiaTTSService
-from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.services.deepgram.stt import DeepgramSTTService
 
 # Load environment variables
@@ -178,25 +183,121 @@ class Go2AudioInput(FrameProcessor):
             logger.error(f"Error processing robot audio input: {e}")
 
 
+class PipecatAudioStreamTrack(AudioStreamTrack):
+    """Custom audio stream track that receives audio from Pipecat and streams to WebRTC."""
+    
+    def __init__(self):
+        super().__init__()
+        self.audio_queue = asyncio.Queue()
+        self._start_time: Optional[float] = None
+        self._timestamp = 0
+        # Robot expects 48kHz stereo audio
+        self.sample_rate = 48000
+        self.channels = 2
+        self.samples_per_frame = 960  # 20ms of audio at 48kHz
+        
+    async def recv(self):
+        """Receive the next audio frame."""
+        if self._start_time is None:
+            self._start_time = asyncio.get_event_loop().time()
+            
+        # Get audio data from queue
+        audio_data = await self.audio_queue.get()
+        
+        # Create audio frame
+        frame = AudioFrame(format='s16', layout='stereo', samples=self.samples_per_frame)
+        frame.sample_rate = self.sample_rate
+        frame.pts = self._timestamp
+        self._timestamp += self.samples_per_frame
+        
+        # Fill frame with audio data
+        frame.planes[0].update(audio_data)
+        
+        return frame
+        
+    async def add_audio(self, audio_data: bytes):
+        """Add audio data to the queue."""
+        await self.audio_queue.put(audio_data)
+
+
 class Go2AudioOutput(FrameProcessor):
     """Handles audio output to Go2 robot speakers."""
     
     def __init__(self, go2_connection: Go2WebRTCConnection):
         super().__init__()
         self._go2_connection = go2_connection
-        # TODO: Implement audio output to robot speakers
-        # This would require implementing audio sending through WebRTC
+        self._audio_track = None
+        self._audio_buffer = bytearray()
+        self._running = False
+        
+    def setup_audio_track(self):
+        """Set up the audio track for output."""
+        if not self._audio_track:
+            # Create custom audio stream track
+            self._audio_track = PipecatAudioStreamTrack()
+            logger.info("Audio output track created")
+            return self._audio_track
+        return None
         
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         """Process frames and send audio to robot."""
         await super().process_frame(frame, direction)
         
-        # Handle TTS audio output
-        if isinstance(frame, OutputAudioRawFrame):
-            # TODO: Convert audio format and send to robot speakers
-            logger.debug("Would send audio to robot speakers")
+        if isinstance(frame, StartFrame):
+            self._running = True
+            await self.push_frame(frame, direction)
+        elif isinstance(frame, EndFrame) or isinstance(frame, CancelFrame):
+            self._running = False
+            await self.push_frame(frame, direction)
+        elif isinstance(frame, OutputAudioRawFrame):
+            # Handle TTS audio output
+            if self._running and self._audio_track:
+                try:
+                    # Convert audio format from Pipecat to robot format
+                    await self._convert_and_send_audio(frame)
+                except Exception as e:
+                    logger.error(f"Error sending audio to robot: {e}")
             
         await self.push_frame(frame, direction)
+        
+    async def _convert_and_send_audio(self, frame: OutputAudioRawFrame):
+        """Convert Pipecat audio format to robot format and send."""
+        if not self._audio_track:
+            return
+            
+        # Get audio data from frame
+        input_audio = np.frombuffer(frame.audio, dtype=np.int16)
+        
+        # Pipecat typically outputs at 16kHz or 24kHz mono
+        # Robot expects 48kHz stereo
+        
+        # Calculate upsampling factor
+        input_rate = frame.sample_rate
+        output_rate = 48000
+        upsample_factor = output_rate // input_rate
+        
+        # Upsample audio (simple repetition for now)
+        if upsample_factor > 1:
+            upsampled = np.repeat(input_audio, upsample_factor)
+        else:
+            upsampled = input_audio
+            
+        # Convert mono to stereo by duplicating the channel
+        stereo_audio = np.stack([upsampled, upsampled], axis=1)
+        
+        # Ensure we have the right amount of data for a frame
+        frame_size = self._audio_track.samples_per_frame * 2  # stereo
+        
+        # Add to buffer
+        self._audio_buffer.extend(stereo_audio.flatten().astype(np.int16).tobytes())
+        
+        # Send complete frames
+        while len(self._audio_buffer) >= frame_size * 2:  # 2 bytes per sample
+            frame_data = bytes(self._audio_buffer[:frame_size * 2])
+            self._audio_buffer = self._audio_buffer[frame_size * 2:]
+            
+            # Send to audio track
+            await self._audio_track.add_audio(frame_data)
 
 
 @weave.op()
@@ -240,9 +341,21 @@ async def main():
     go2_connection = Go2WebRTCConnection(connection_method, **connection_kwargs)
     
     try:
+        # Create audio input/output handlers early so we can set up the audio track
+        audio_input = Go2AudioInput(go2_connection)
+        audio_output = Go2AudioOutput(go2_connection)
+        
+        # Set up audio output track before connecting
+        output_track = audio_output.setup_audio_track()
+        
         # Connect to robot
         logger.info("Connecting to Go2 robot...")
         await go2_connection.connect()
+        
+        # Add the audio track to the peer connection after connecting
+        if output_track and go2_connection.pc:
+            go2_connection.pc.addTrack(output_track)
+            logger.info("Audio output track added to peer connection")
         
         # Enable audio channels
         go2_connection.audio.switchAudioChannel(True)
@@ -285,15 +398,8 @@ async def main():
         ]
         
         # Set up conversation context and management
-        context = OpenAILLMContext(messages)
+        context = OpenAILLMContext(messages)  # type: ignore
         context_aggregator = llm.create_context_aggregator(context)
-        
-        # Create audio input/output handlers
-        audio_input = Go2AudioInput(go2_connection)
-        audio_output = Go2AudioOutput(go2_connection)
-        
-        # Create VAD analyzer for voice activity detection
-        vad = SileroVADAnalyzer()
         
         # Create audio buffer processor for recording
         audiobuffer = AudioBufferProcessor(enable_turn_audio=True)
@@ -301,7 +407,6 @@ async def main():
         # Build the pipeline
         pipeline = Pipeline([
             audio_input,
-            # vad,
             stt,
             context_aggregator.user(),
             llm,
