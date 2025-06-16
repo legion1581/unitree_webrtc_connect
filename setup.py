@@ -16,6 +16,15 @@ setup(
         'wasmtime',
         'flask-socketio',
         'lz4',
-        'pydub'
+        'pydub',
+        # Voice Agent Dependencies
+        'pipecat-ai[daily,cartesia,openai,silero,deepgram]',
+        'python-dotenv',
+        'aiohttp',
+        'loguru',
+        'Pillow',
+        'scipy',
+        'numpy',
+        'weave'
     ],
 )
