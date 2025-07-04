@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "setuptools-git-versioning"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "go2-webrtc-connect"
+authors = [
+    {name = "legion1581", email = "legion1581@gmail.com"},
+]
+description = "WebRTC driver for Go2 robot"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dynamic = ["version"]
+
+dependencies = [
+    "aiortc==1.9.0", 
+    "pycryptodome",
+    "opencv-python",
+    "sounddevice",
+    "pyaudio",
+    "requests",
+    "wasmtime",
+    "flask-socketio",
+    "lz4",
+    "pydub",
+    "aioice @ git+https://github.com/legion1581/aioice.git@go2"
+]
+
+[tool.setuptools]
+packages.find = {}
+
+[tool.setuptools.package-data]
+"*" = ["*.wasm"]
+
+[tool.setuptools-git-versioning]
+enabled = true

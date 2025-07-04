@@ -6,6 +6,10 @@ setup(
     author='legion1581',
     author_email='legion1581@gmail.com',
     packages=find_packages(),
+    package_data={
+        '': ['*.wasm'],
+    },
+    include_package_data=True,
     install_requires=[
         'aiortc==1.9.0', 
         'pycryptodome',
@@ -16,6 +20,7 @@ setup(
         'wasmtime',
         'flask-socketio',
         'lz4',
-        'pydub'
+        'pydub',
+        'aioice @ git+https://github.com/legion1581/aioice.git@go2'
     ],
 )
