@@ -159,6 +159,81 @@ SPORT_CMD = {
     "CrossWalk": 1051
 }
 
+# MCF Mode Command Mappings (Firmware 1.1.7+)
+# Default motion control framework that unifies normal and AI modes
+MCF_CMD = {
+    # Basic movement commands
+    "Damp": 1001,
+    "BalanceStand": 1002,
+    "StopMove": 1003,
+    "StandUp": 1004,
+    "StandDown": 1005,
+    "RecoveryStand": 1006,
+    "Sit": 1009,
+    "RiseSit": 1010,
+
+    # Movement and gait commands
+    "Move": 1008,
+    "SwitchGait": 1011,
+    "ContinuousGait": 1019,
+    "EconomicGait": 1063,
+    "StaticWalk": 1061,
+    "TrotRun": 1062,
+    "FreeWalk": 2045,
+    "FreeBound": 2046,
+    "FreeJump": 2047,
+    "FreeAvoid": 2048,
+    "ClassicWalk": 2049,
+    "BackStand": 2050,
+    "CrossStep": 2051,
+    "LeadFollow": 2056,
+
+    # Orientation and pose commands
+    "Euler": 1007,
+    "Pose": 1028,
+    "BodyHeight": 1013,
+    "FootRaiseHeight": 1014,
+    "SpeedLevel": 1015,
+
+    # Action commands
+    "Hello": 1016,
+    "Stretch": 1017,
+    "Content": 1020,
+    "Scrape": 1029,
+    "Heart": 1036,
+
+    # Dance and entertainment commands
+    "Dance1": 1022,
+    "Dance2": 1023,
+
+    # Acrobatic commands
+    "FrontFlip": 1030,
+    "LeftFlip": 2041,
+    "RightFlip" : 2040,
+    "BackFlip": 2043,
+    "FrontJump": 1031,
+    "FrontPounce": 1032,
+    "Handstand": 2044,
+
+    # Trajectory and control commands
+    "TrajectoryFollow": 1018,
+    "Trigger": 1012,
+    "SwitchJoystick": 1027,
+
+    # Status and query commands
+    "GetBodyHeight": 1024,
+    "GetFootRaiseHeight": 1025,
+    "GetSpeedLevel": 1026,
+    "GetState": 1034,
+
+    # Recovery settings
+    "SetAutoRecovery": 2054,
+    "GetAutoRecovery": 2055,
+
+    # Avoidance settings
+    "SwitchAvoidMode": 2058,
+}
+
 class VUI_COLOR:
     WHITE: str = 'white'
     RED: str = 'red'
