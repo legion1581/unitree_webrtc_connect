@@ -2,6 +2,7 @@ import asyncio
 import logging
 import json
 import sys
+import os
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceServer, RTCConfiguration
 from aiortc.contrib.media import MediaPlayer
 from .unitree_auth import send_sdp_to_local_peer, send_sdp_to_remote_peer
@@ -19,7 +20,7 @@ class UnitreeWebRTCConnection:
     def __init__(self, connectionMethod: WebRTCConnectionMethod, serialNumber=None, ip=None, username=None, password=None) -> None:
         self.pc = None
         self.sn = serialNumber
-        self.ip = ip
+        self.ip = ip if ip else os.getenv("ROBOT_IP")
         self.connectionMethod = connectionMethod
         self.isConnected = False
         self.token = fetch_token(username, password) if username and password else ""

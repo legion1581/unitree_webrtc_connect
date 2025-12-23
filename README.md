@@ -37,6 +37,11 @@ The driver supports three types of connection methods:
     UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip="192.168.8.181")
     ```
 
+    Alternatively, you can set the environement variable `ROBOT_IP`, for example
+
+    ```bash
+    export ROBOT_IP="192.168.8.181"
+    ```
 
     If the IP is unknown, you can specify only the serial number, and the driver will try to find the IP using the special Multicast discovery feature available on Go2:
 
@@ -76,7 +81,7 @@ pip install -e .
 ```
 
 ## Usage 
-Example programs are located in the /example directory.
+Example programs are located in the /example directory. Set the IP address of the robot using the environment variable `ROBOT_IP` or modify the example.
 
 ### Thanks
 
