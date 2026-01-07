@@ -32,30 +32,37 @@ def decompress(compressed_data, decomp_size):
 def bits_to_points(buf, origin, resolution=0.05):
     buf = np.frombuffer(bytearray(buf), dtype=np.uint8)
     nonzero_indices = np.nonzero(buf)[0]
-    points = []
 
-    for n in nonzero_indices:
-        byte_value = buf[n]
-        z = n // 0x800
-        n_slice = n % 0x800
-        y = n_slice // 0x10
-        x_base = (n_slice % 0x10) * 8
+    if len(nonzero_indices) == 0:
+        return np.empty((0, 3), dtype=np.float64)
 
-        for bit_pos in range(8):
-            if byte_value & (1 << (7 - bit_pos)):
-                x = x_base + bit_pos
-                points.append((x,y,z))
+    # Get byte values and unpack to bits (MSB first matches original logic)
+    byte_values = buf[nonzero_indices]
+    bits = np.unpackbits(byte_values).reshape(-1, 8)
 
-    return np.array(points) * resolution + origin
+    # Calculate base coordinates for each nonzero byte
+    z = nonzero_indices // 0x800
+    n_slice = nonzero_indices % 0x800
+    y = n_slice // 0x10
+    x_base = (n_slice % 0x10) * 8
+
+    # Expand coordinates to match 8 bits per byte
+    z_expanded = np.repeat(z, 8)
+    y_expanded = np.repeat(y, 8)
+    x = np.repeat(x_base, 8) + np.tile(np.arange(8), len(nonzero_indices))
+
+    # Filter to only points where bit is set
+    mask = bits.ravel() == 1
+    points = np.column_stack((x[mask], y_expanded[mask], z_expanded[mask]))
+
+    return points * resolution + origin
 
 class LidarDecoder:
     def decode(self, compressed_data, data):
-        def points():
-            decompressed = decompress(compressed_data, data["src_size"])
-            points = bits_to_points(decompressed, data["origin"], data["resolution"])
-            return points
+        decompressed = decompress(compressed_data, data["src_size"])
+        points = bits_to_points(decompressed, data["origin"], data["resolution"])
 
         return {
-                "points": points(),
+                "points": points,
                 # "raw": compressed_data,
         }
