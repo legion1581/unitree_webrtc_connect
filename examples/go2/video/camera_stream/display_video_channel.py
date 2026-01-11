@@ -22,7 +22,7 @@ def main():
     frame_queue = Queue()
 
     # Choose a connection method (uncomment the correct one)
-    conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip="192.168.8.181")
+    conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA)
     # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, serialNumber="B42D2000XXXXXXXX")
     # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.Remote, serialNumber="B42D2000XXXXXXXX", username="email@gmail.com", password="pass")
     # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalAP)
