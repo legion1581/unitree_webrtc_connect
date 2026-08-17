@@ -1,17 +1,20 @@
 import asyncio
 import logging
-import json
+import os
 import sys
 from unitree_webrtc_connect.webrtc_driver import UnitreeWebRTCConnection, WebRTCConnectionMethod
-from unitree_webrtc_connect.constants import RTC_TOPIC, SPORT_CMD
 
 # Enable logging for debugging
 logging.basicConfig(level=logging.FATAL)
+
+ROBOT_IP = os.environ.get("UNITREE_ROBOT_IP", "192.168.8.181")
+# G1 firmware >= 1.5.1 requires an AES-128 key (data2=3 auth path).
+AES_128_KEY = os.environ.get("UNITREE_AES_128_KEY")
     
 async def main():
     try:
         # Choose a connection method (uncomment the correct one)
-        conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip="10.0.0.191")
+        conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip=ROBOT_IP, aes_128_key=AES_128_KEY)
         # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, serialNumber="B42D2000XXXXXXXX")
         # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.Remote, serialNumber="B42D2000XXXXXXXX", username="email@gmail.com", password="pass")
         # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalAP)

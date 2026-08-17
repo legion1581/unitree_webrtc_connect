@@ -42,9 +42,9 @@ class AesKeyRequiredError(RuntimeError):
 
     def __init__(self):
         super().__init__(
-            "This robot speaks data2=3 (G1 ≥ 1.5.1 / Go2 ≥ 1.1.15) — the "
-            "per-device AES-128 key is required to decrypt the LAN "
-            "handshake.\n"
+            "This robot speaks data2=3 (G1 ≥ 1.5.1 / Go2 ≥ 1.1.15 / any "
+            "R1) — the per-device AES-128 key is required to decrypt the "
+            "LAN handshake.\n"
             "Pass `aes_128_key=...` (32 hex chars) to UnitreeWebRTCConnection.\n"
             "Fetch it via `examples/fetch_aes_key.py` or "
             "`UnitreeCloud.list_devices()`."
@@ -261,10 +261,10 @@ def send_sdp_to_local_peer(ip, sdp, aes_128_key: str = None):
     """Send the SDP offer over LAN. Probes which signaling port the robot
     is exposing and dispatches to the matching flow:
 
-        :9991 (con_notify)  —  newer firmware, all G1, post-1.1.11 Go2.
-                                Uses `aes_128_key` when the robot replies
-                                with `data2 === 3` (G1 ≥ 1.5.1,
-                                Go2 ≥ 1.1.15).
+        :9991 (con_notify)  —  newer firmware, all G1 and R1, post-1.1.11
+                                Go2. Uses `aes_128_key` when the robot
+                                replies with `data2 === 3` (G1 ≥ 1.5.1,
+                                Go2 ≥ 1.1.15, every R1).
         :8081 (offer)        —  legacy Go2 firmware (pre-1.1.11).
 
     Raises `LocalSignalingPortError` if neither port is reachable."""

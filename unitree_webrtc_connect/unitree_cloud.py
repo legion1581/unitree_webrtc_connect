@@ -6,10 +6,11 @@ Why curl_cffi?  The Unitree cloud is fronted by Cloudflare-style TLS / JA3
 fingerprinting. Plain `requests` gets blocked. `curl_cffi` impersonates a
 real Chrome handshake, which is what the Unitree apk does on the wire.
 
-Region and device_type are first-class parameters because Go2 and G1 hit
-different cloud regions / app-name headers — `Go2` apk uses
-`global-robot-api.unitree.com` with `AppName: Go2`; the G1 apk uses the
-same host but with `AppName: G1`. The `cn` region lives at
+Region and device_type are first-class parameters because the robot
+families hit different app-name headers on the same host — the Go2 apk
+uses `global-robot-api.unitree.com` with `AppName: Go2`, while the
+humanoids (G1 and R1) both ship under Unitree Explorer and send
+`AppName: B2`. See APP_NAME below. The `cn` region lives at
 `robot-api.unitree.com` and is required for accounts registered in China.
 """
 
@@ -53,7 +54,18 @@ _BASE_HEADERS = {
 }
 
 VALID_REGIONS = ("global", "cn")
-VALID_DEVICE_TYPES = ("Go2", "G1")
+VALID_DEVICE_TYPES = ("Go2", "G1", "R1")
+
+# `device_type` is the robot you're talking to; `AppName` is the account
+# namespace the cloud signs against, and the two are not the same thing.
+# Go2 has its own mobile app and its own namespace. The humanoids all ship
+# under Unitree Explorer, which sends `AppName: B2` for the whole line — so
+# G1 and R1 share one account and one namespace.
+APP_NAME = {
+    "Go2": "Go2",
+    "G1":  "B2",
+    "R1":  "B2",
+}
 
 
 # ─── Errors ───────────────────────────────────────────────────────────
@@ -130,7 +142,7 @@ class UnitreeCloud:
             "AppTimestamp": ts,
             "AppNonce": nonce,
             "AppSign": sign,
-            "AppName": self.device_type,
+            "AppName": APP_NAME[self.device_type],
             "Token": self.access_token,
         }
 
@@ -200,8 +212,10 @@ class UnitreeCloud:
 
     def list_devices(self) -> list[RobotDevice]:
         """`device/bind/list` — returns every robot bound to the account.
-        On V3-capable firmware (G1 ≥ 1.5.1, Go2 ≥ 1.1.15) the per-device
-        AES-128 key is in `dev.key`."""
+        On V3-capable firmware (G1 ≥ 1.5.1, Go2 ≥ 1.1.15, all R1) the
+        per-device AES-128 key is in `dev.key`. `dev.series` identifies the
+        family — "Go2", "G1" or "R1"; note that G1 and R1 are bound to the
+        same account, so a humanoid listing can contain both."""
         result = self._request("GET", "device/bind/list")
         data = self._check(result, "device/bind/list") or []
         return [RobotDevice.from_dict(d) for d in data]
@@ -268,7 +282,7 @@ def fetch_aes_key(email: str, password: str, sn: str,
                     "fetch_aes_key", 0,
                     f"Device {sn} is bound but the cloud returned an empty "
                     f"`dev.key`. Check the firmware version (data2=3 / V3 "
-                    f"is required — G1 ≥ 1.5.1 or Go2 ≥ 1.1.15).",
+                    f"is required — G1 ≥ 1.5.1, Go2 ≥ 1.1.15, or any R1).",
                 )
             return d.key
     raise UnitreeCloudError(

@@ -1,6 +1,6 @@
 # Unitree WebRTC Connect
 
-Python WebRTC driver for Unitree Go2 and G1 robots. Provides high-level control through the same WebRTC protocol used by the Unitree Go/Unitree Explore mobile apps — no jailbreak or firmware modification required.
+Python WebRTC driver for Unitree Go2, G1 and R1 robots. Provides high-level control through the same WebRTC protocol used by the Unitree Go/Unitree Explore mobile apps — no jailbreak or firmware modification required.
 
 ![Screenshot](https://github.com/legion1581/unitree_webrtc_connect/raw/master/images/screenshot_1.png)
 
@@ -14,28 +14,39 @@ Python WebRTC driver for Unitree Go2 and G1 robots. Provides high-level control 
 |-------|----------|
 | **Go2** | AIR, PRO, EDU |
 | **G1** | AIR, EDU |
+| **R1** | AIR, PRO, EDU |
 
 ## Supported Firmware
 
 | Robot | Firmware Versions | Auth |
 |-------|-------------------|------|
-| **Go2** | 1.0.19 – 1.0.25<br>1.1.1 – 1.1.14<br>1.1.15+ *(latest)* | static GCM key (`data2=2`)<br>static GCM key (`data2=2`)<br>per-device AES-128 key (`data2=3`) — see [AES-128 Key](#aes-128-key-data23-g1--151--go2--1115) |
-| **G1** | 1.2.0 – 1.4.5<br>1.5.1+ *(latest)* | static GCM key (`data2=2`)<br>per-device AES-128 key (`data2=3`) — see [AES-128 Key](#aes-128-key-data23-g1--151--go2--1115) |
+| **Go2** | 1.0.19 – 1.0.25<br>1.1.1 – 1.1.14<br>1.1.15+ *(latest)* | static GCM key (`data2=2`)<br>static GCM key (`data2=2`)<br>per-device AES-128 key (`data2=3`) — see [AES-128 Key](#aes-128-key-data23-g1--151--go2--1115--all-r1) |
+| **G1** | 1.2.0 – 1.4.5<br>1.5.1+ *(latest)* | static GCM key (`data2=2`)<br>per-device AES-128 key (`data2=3`) — see [AES-128 Key](#aes-128-key-data23-g1--151--go2--1115--all-r1) |
+| **R1** | 1.4.2 *(latest)* | per-device AES-128 key (`data2=3`) — see [AES-128 Key](#aes-128-key-data23-g1--151--go2--1115--all-r1) |
 
 ## Features
 
-| Feature | Go2 | G1 |
-|---------|:---:|:--:|
-| Data channel (pub/sub, RPC) | yes | yes |
-| Sport / arm-action control | yes | yes |
-| Video stream (receive) | yes | yes |
-| Audio stream (send/receive) | yes | — |
-| LiDAR point cloud decoding | yes | — |
-| VUI (LED, brightness, volume) | yes | — |
-| AudioHub (audio file management) | yes | — |
-| Obstacle avoidance API | yes | — |
-| Multicast device discovery | yes | — |
-| `data2=3` per-device key auth | yes (Go2 ≥ 1.1.15) | yes (G1 ≥ 1.5.1) |
+| Feature | Go2 | G1 | R1 |
+|---------|:---:|:--:|:--:|
+| Data channel (pub/sub, RPC) | yes | yes | yes |
+| Sport / arm-action control | yes | yes | yes |
+| FSM state control (`fsm_id`) | — | yes | yes |
+| Video stream (receive) | yes | yes | yes |
+| Audio stream (send/receive) | yes | — | — |
+| LiDAR point cloud decoding | yes | — | — |
+| VUI (LED, brightness, volume) | yes | — | — |
+| AudioHub (audio file management) | yes | — | — |
+| Obstacle avoidance API | yes | — | — |
+| Multicast device discovery | yes | SN-targeted | SN-targeted |
+| `data2=3` per-device key auth | yes (Go2 ≥ 1.1.15) | yes (G1 ≥ 1.5.1) | yes (always) |
+
+"SN-targeted" discovery means the firmware only answers a query carrying its
+own serial number, so it can confirm an address but not enumerate the network.
+
+The humanoids (G1 and R1) share the Unitree Explorer account namespace, one
+control channel and one topic set. Where they differ is the FSM state table:
+R1's Run is `811`, not G1's `801`, and it carries its own dance / martial-arts
+states. See `R1_FSM` in `constants.py`.
 
 ## Installation
 
@@ -98,8 +109,18 @@ Robot and client are on the same local network. Requires IP or serial number.
 # By IP
 UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip="192.168.8.181")
 
-# By serial number (uses multicast discovery, Go2 only)
+# By serial number (uses multicast discovery). Pass device_type so the
+# scanner queries the right multicast group — the humanoids don't announce
+# on the Go2 group. Note that G1 >= 1.5.1 and every R1 ignore untargeted
+# queries and reply only to one naming their own SN, so discovery finds
+# them only when you already know the serial.
 UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, serialNumber="B42D2000XXXXXXXX")
+UnitreeWebRTCConnection(
+    WebRTCConnectionMethod.LocalSTA,
+    serialNumber="E21D6000XXXXXXXX",
+    device_type="R1",              # or "G1" — same multicast groups
+    aes_128_key="<32-hex-chars>",
+)
 
 # V3-capable firmware (G1 ≥ 1.5.1, Go2 ≥ 1.1.15) by IP, with per-device key
 UnitreeWebRTCConnection(
@@ -134,9 +155,9 @@ UnitreeWebRTCConnection(
 )
 ```
 
-## AES-128 Key (`data2=3`, G1 ≥ 1.5.1 / Go2 ≥ 1.1.15)
+## AES-128 Key (`data2=3`, G1 ≥ 1.5.1 / Go2 ≥ 1.1.15 / all R1)
 
-Starting with G1 firmware **1.5.1** (back-ported to Go2 firmware **1.1.15**), the LAN signaling handshake (`con_notify`) returns `data2=3`, which means the embedded RSA public key is wrapped under a **per-device AES-128-GCM key**. Without that key the WebRTC handshake can't decrypt the public key and the connection never starts. (Older firmware — G1 < 1.5.1 / Go2 < 1.1.15 — uses a static AES-GCM key, handled automatically.)
+Starting with G1 firmware **1.5.1** (back-ported to Go2 firmware **1.1.15**), the LAN signaling handshake (`con_notify`) returns `data2=3`, which means the embedded RSA public key is wrapped under a **per-device AES-128-GCM key**. Without that key the WebRTC handshake can't decrypt the public key and the connection never starts. (Older firmware — G1 < 1.5.1 / Go2 < 1.1.15 — uses a static AES-GCM key, handled automatically.) **R1 shipped after the cutover, so every R1 needs a key.**
 
 The key is **per device**, **stable across re-pairings**, stored on the robot at `/unitree/etc/key/aes_key.bin` (RSA-wrapped), and surfaced to the cloud as `dev.key` in `device/bind/list`.
 
@@ -146,7 +167,8 @@ After `pip install unitree_webrtc_connect` you get a console script:
 
 ```sh
 # By default: region=global, device family=G1.
-# Use --device-type Go2 for Unitree Go2 (≥ 1.1.15).
+# Use --device-type Go2 for Unitree Go2 (≥ 1.1.15), or R1 for Unitree R1.
+# G1 and R1 share one Unitree Explorer account, so either lists both.
 unitree-fetch-aes-key --email you@example.com --password '...'
 
 # Go2 in global region:
@@ -251,6 +273,16 @@ On V3-capable firmware (G1 ≥ 1.5.1, Go2 ≥ 1.1.15), also set
 | **Data Channel** | `data_channel/sport_mode/` | Sport mode movement commands |
 | **Video** | `video/camera_stream/` | Display video stream |
 
+### R1
+
+| Category | Example | Description |
+|----------|---------|-------------|
+| **Data Channel** | `data_channel/fsm_mode/` | Interactive FSM state menu — switch states, read `fsm_id` back, decode refusals |
+| | `data_channel/arm_actions/` | Interactive upper-limb gesture menu |
+| | `data_channel/teleop/` | Realtime WASD teleop — hold to drive, ramped, auto-stop on release |
+| | `data_channel/lowstate/` | Live battery / motors / IMUs / board temperature |
+| **Video** | `video/camera_stream/` | Display video stream |
+
 ## Imports
 
 All public classes, helpers and exception types are exported from the package root:
@@ -265,6 +297,13 @@ from unitree_webrtc_connect import (
     DATA_CHANNEL_TYPE,
     RTC_TOPIC,
     SPORT_CMD,
+    discover_ip_sn,
+
+    # Humanoid (G1 / R1) control
+    LOCO_API,
+    LOCO_FSM_ERRORS,
+    R1_FSM,
+    ARM_ACTION,
 
     # Cloud helpers (data2=3, account / TURN flow, bind list)
     UnitreeCloud,

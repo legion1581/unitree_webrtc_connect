@@ -1,6 +1,6 @@
 [project]
 name = "unitree_webrtc_connect"
-version = "2.1.2"
+version = "2.2.0"
 description = "Connect to the Unitree Go2 and G1 with WebRTC"
 readme = "README.md"
 requires-python = ">=3.8"

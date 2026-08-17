@@ -51,7 +51,16 @@ from .constants import (  # noqa: E402
     SPORT_CMD,
     SPORT_CMD_MCF,
     OBSTACLES_AVOID_API,
+    LOCO_API,
+    LOCO_API_SERVED_R1,
+    LOCO_FSM_ERRORS,
+    R1_FSM,
+    ARM_ACTION,
+    MOTOR_NAMES_HUMANOID,
+    R1_MOTOR_INDICES,
+    sign_byte,
 )
+from .multicast_scanner import discover_ip_sn  # noqa: E402
 from .msgs.pub_sub import WebRTCDataChannelPubSub  # noqa: E402
 from .unitree_cloud import (  # noqa: E402
     UnitreeCloud,
@@ -78,6 +87,15 @@ __all__ = [
     "SPORT_CMD",
     "SPORT_CMD_MCF",
     "OBSTACLES_AVOID_API",
+    "LOCO_API",
+    "LOCO_API_SERVED_R1",
+    "LOCO_FSM_ERRORS",
+    "R1_FSM",
+    "ARM_ACTION",
+    "MOTOR_NAMES_HUMANOID",
+    "R1_MOTOR_INDICES",
+    "sign_byte",
+    "discover_ip_sn",
     "UnitreeCloud",
     "UnitreeCloudError",
     "RobotDevice",

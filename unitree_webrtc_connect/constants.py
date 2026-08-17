@@ -90,6 +90,18 @@ RTC_TOPIC = {
     "SLAM_ODOMETRY": "rt/lio_sam_ros2/mapping/odometry",
     "ARM_COMMAND": "rt/arm_Command",
     "ARM_FEEDBACK": "rt/arm_Feedback",
+    # Humanoid (G1 / R1) upper-limb request channel. Distinct from
+    # ARM_COMMAND above: this one carries api_id requests (see ARM_ACTION),
+    # the other is the low-level arm command stream.
+    "ARM_REQUEST": "rt/api/arm/request",
+    # Humanoid state topics. Go2 packs battery into lowstate and ships one
+    # IMU; the humanoids split them out:
+    #   BMS_STATE       — the bms struct on its own topic, not nested
+    #   SECONDARY_IMU   — pelvis IMU (lowstate.imu_state is the torso one)
+    #   MAIN_BOARD_STATE— body/chassis temperature (Go2 uses temperature_ntc1)
+    "BMS_STATE": "rt/lf/bmsstate",
+    "SECONDARY_IMU": "rt/lf/secondary_imu",
+    "MAIN_BOARD_STATE": "rt/lf/mainboardstate",
     "AUDIO_HUB_REQ": "rt/api/audiohub/request",
     "AUDIO_HUB_PLAY_STATE": "rt/audiohub/player/state",
     "GAS_SENSOR": "rt/gas_sensor",
@@ -216,6 +228,116 @@ OBSTACLES_AVOID_API = {
     "SWITCH_GET":                  1002,  # {} -> {"enable": bool}
     "MOVE":                        1003,  # {"x", "y", "yaw", "mode": 0} (no-reply)
     "USE_REMOTE_COMMAND_FROM_API": 1004,  # {"is_remote_commands_from_api": bool}
+}
+
+# ─── Humanoid (G1 / R1) ───────────────────────────────────────────────
+#
+# The humanoids don't use the Go2 sport command space. Every persistent
+# posture, gait and motion is a single FSM state selected through ONE api
+# on `rt/api/sport/request` (= RTC_TOPIC["SPORT_MOD"]): you send
+# SET_FSM_ID and change the `fsm_id`, rather than picking a command id.
+# The robot echoes the current state back in `fsm_id` on
+# `rt/lf/sportmodestate` (= RTC_TOPIC["LF_SPORT_MOD_STATE"]).
+
+LOCO_API = {
+    "GET_FSM_ID":         7001,
+    "GET_FSM_MODE":       7002,
+    "GET_ARM_SDK_STATUS": 7007,
+    "SET_FSM_ID":         7101,
+    "SET_VELOCITY":       7105,  # {"velocity":[vx,vy,omega],"duration":<s>}
+    "SET_ARM_TASK":       7106,  # on RTC_TOPIC["ARM_REQUEST"], not SPORT_MOD
+    "SET_SPEED_MODE":     7107,
+    "SET_MOTION":         7108,  # parameter is an ARRAY, not {"data": N}
+    "SET_ARM_SDK_STATUS": 7109,
+}
+
+# Only a subset is actually served: R1's loco server registers
+# 7001 / 7101 / 7105 / 7108. The rest exist as constants in the firmware
+# but are not bound to a handler, so they answer nothing.
+LOCO_API_SERVED_R1 = ("GET_FSM_ID", "SET_FSM_ID", "SET_VELOCITY", "SET_MOTION")
+
+# `SET_FSM_ID` error codes, from the on-robot handler.
+LOCO_FSM_ERRORS = {
+    1001: "transition refused by the current state (white/black list)",
+    1002: "transition refused by the current state (white/black list)",
+    1003: "invalid fsm id — that state does not exist on this firmware",
+}
+
+# R1 FSM states. Note Run is 811 (`AmpMotion22Dof`), NOT G1's 801 — and on
+# an AIR chassis the firmware redirects a request for 811 to 830
+# (`Locomotion20Dofs`), so the state reported back may differ from the one
+# requested. States marked "app" are the four the official R1 app exposes.
+R1_FSM = {
+    "ZeroTorque":   0,    # app
+    "Damping":      1,    # app — also the universal escape hatch
+    "Lock":         4,    # app (internally `Stance`)
+    "Keep":         5,
+    "MoveTo":       6,
+    "SitDown":      7,
+    "Dance1":       601,
+    "Dance2":       602,
+    "Dance3":       603,
+    "Twist":        604,  # niuniuwu 扭扭舞
+    "KungFu":       607,  # gongfu 功夫
+    "JeetKuneDo":   608,  # jiequandao 截拳道
+    "StandUp":      701,  # Qishen 起身 — recovers from face-up or face-down
+    "LieDown":      702,  # Tangxia 躺下
+    "Motion":       800,
+    "Run":          811,  # app — AmpMotion22Dof
+    "AmpMotion":    812,
+    "WalkStraightKnee": 813,
+    "Walk":         814,
+    "AmpLocomotion": 815,
+    "ArmSdkLoco":   816,
+    "Loco20Dof":    830,
+    "LocoArmSdk":   831,
+}
+
+# Reachability is enforced on the robot, per state, and Damping is the only
+# transition accepted from everywhere. Most motions are reachable only from
+# Lock (4), not from Run. A refused switch answers 1001; a state this
+# firmware doesn't build answers 1003.
+
+# Motor index -> name for the humanoid lowstate array. G1 fills all 29
+# slots (12 legs + 3 waist + 14 arms). R1 is 20-DOF and populates a subset
+# of the SAME array: legs 0-11, left arm 15-18, right arm 22-25 — it has no
+# waist and no wrists, so those slots stay zeroed.
+MOTOR_NAMES_HUMANOID = [
+    "L Hip P", "L Hip R", "L Hip Y", "L Knee", "L Ank P", "L Ank R",
+    "R Hip P", "R Hip R", "R Hip Y", "R Knee", "R Ank P", "R Ank R",
+    "Waist Y", "Waist R", "Waist P",
+    "L Sho P", "L Sho R", "L Sho Y", "L Elbow", "L Wri R", "L Wri P", "L Wri Y",
+    "R Sho P", "R Sho R", "R Sho Y", "R Elbow", "R Wri R", "R Wri P", "R Wri Y",
+]
+
+# The slots R1 actually drives, in a sensible reading order.
+R1_MOTOR_INDICES = list(range(0, 12)) + list(range(15, 19)) + list(range(22, 26))
+
+
+def sign_byte(value):
+    """Temperatures arrive as unsigned bytes but represent signed values."""
+    return value - 256 if isinstance(value, (int, float)) and value > 127 else value
+
+
+# Upper-limb gestures — api_id LOCO_API["SET_ARM_TASK"] on
+# RTC_TOPIC["ARM_REQUEST"], parameter {"data": <id>}. Shared with G1 except
+# the two heart gestures (ArmHeart 20 / RightHeart 21), which R1 omits.
+ARM_ACTION = {
+    "Release":      99,   # cancel any gesture, return the arms
+    "LeftKiss":     12,
+    "HandsUp":      15,
+    "Clap":         17,
+    "HighFive":     18,
+    "Hug":          19,
+    "ArmHeart":     20,   # G1 only
+    "RightHeart":   21,   # G1 only
+    "Reject":       22,
+    "RightHandUp":  23,
+    "XRay":         24,
+    "FaceWave":     25,
+    "HighWave":     26,
+    "Handshake":    27,
+    "ForwardPush":  36,
 }
 
 class VUI_COLOR:

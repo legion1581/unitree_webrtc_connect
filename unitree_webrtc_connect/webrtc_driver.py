@@ -34,14 +34,16 @@ class UnitreeWebRTCConnection:
     ) -> None:
         """`aes_128_key` is the per-device 16-byte key (32 hex chars) the
         cloud returns as `dev.key` in `device/bind/list`. Required on
-        G1 firmware ≥ 1.5.1 and Go2 firmware ≥ 1.1.15 for the LAN flow
-        (con_notify returns `data2 === 3`); ignored on older firmware.
-        Fetch it via `examples/fetch_aes_key.py` once per robot and
-        cache locally.
+        G1 firmware ≥ 1.5.1, Go2 firmware ≥ 1.1.15 and every R1 for the
+        LAN flow (con_notify returns `data2 === 3`); ignored on older
+        firmware. Fetch it via `examples/fetch_aes_key.py` once per robot
+        and cache locally.
 
-        `region` (`"global"`/`"cn"`) and `device_type` (`"Go2"`/`"G1"`)
-        select the correct cloud endpoint + AppName header for the
-        Remote signaling flow."""
+        `region` (`"global"`/`"cn"`) and `device_type` (`"Go2"`/`"G1"`/
+        `"R1"`) select the correct cloud endpoint + AppName header for the
+        Remote signaling flow. `device_type` also picks which multicast
+        groups serial-number discovery queries — the humanoids do not
+        announce on the Go2 group."""
         self.pc = None
         self.sn = serialNumber
         self.ip = ip
@@ -69,7 +71,9 @@ class UnitreeWebRTCConnection:
             await self.init_webrtc(turn_server_info)
         elif self.connectionMethod == WebRTCConnectionMethod.LocalSTA:
             if not self.ip and self.sn:
-                discovered_ip_sn_addresses = discover_ip_sn()
+                discovered_ip_sn_addresses = discover_ip_sn(
+                    device_type=self.device_type, sn=self.sn,
+                )
                 
                 if discovered_ip_sn_addresses:
                     if self.sn in discovered_ip_sn_addresses:

@@ -1,6 +1,6 @@
 """
 CLI for fetching the per-device AES-128 key (`dev.key` from the Unitree
-cloud, required for the LAN data2=3 handshake on G1 firmware ≥ 1.5.1
+cloud, required for the LAN data2=3 handshake on R1, G1 firmware ≥ 1.5.1
 and Go2 firmware ≥ 1.1.15).
 
 Registered as the `unitree-fetch-aes-key` console script in pyproject
@@ -19,7 +19,7 @@ import getpass
 import sys
 import time
 
-from .unitree_cloud import UnitreeCloud, UnitreeCloudError
+from .unitree_cloud import APP_NAME, UnitreeCloud, UnitreeCloudError
 
 
 # ─── tiny stderr logger so we don't drag in the logging config ────────
@@ -54,7 +54,8 @@ def _print_key_box(device, region: str, device_type: str) -> None:
     print(f"│ {('SN     : ' + device.sn).ljust(width - 1)}│")
     print(f"│ {('Alias  : ' + alias).ljust(width - 1)}│")
     print(f"│ {('Status : ' + online).ljust(width - 1)}│")
-    print(f"│ {('Region : ' + region + '  AppName : ' + device_type).ljust(width - 1)}│")
+    label = f"Region : {region}  Family : {device_type}  AppName : {APP_NAME[device_type]}"
+    print(f"│ {label.ljust(width - 1)}│")
     print(f"│ {('Key    : ' + device.key).ljust(width - 1)}│")
     print(f"└{line}┘")
     print(
@@ -67,7 +68,7 @@ def _print_table(devices, region: str, device_type: str) -> None:
     """All-bound-devices table. Goes to stdout."""
     print(
         f"\nDevices bound to this account ({len(devices)} total) — "
-        f"region={region}, AppName={device_type}\n",
+        f"region={region}, family={device_type}, AppName={APP_NAME[device_type]}\n",
         file=sys.stderr,
     )
     sn_w = max((len(d.sn) for d in devices), default=2)
@@ -89,12 +90,13 @@ def _parse_args(argv) -> argparse.Namespace:
         prog="unitree-fetch-aes-key",
         description=(
             "Fetch the per-device AES-128 key (data2=3, required on "
-            "G1 ≥ 1.5.1 and Go2 ≥ 1.1.15) from the Unitree cloud."
+            "G1 ≥ 1.5.1, Go2 ≥ 1.1.15 and every R1) from the Unitree cloud."
         ),
         epilog=(
             "Examples:\n"
             "  unitree-fetch-aes-key --email you@example.com --password ...\n"
             "  unitree-fetch-aes-key --token <accessToken> --region cn --device-type G1\n"
+            "  unitree-fetch-aes-key --email ... --device-type R1\n"
             "  unitree-fetch-aes-key --email ... --sn B42D2000XXXXXXXX --quiet"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -105,8 +107,10 @@ def _parse_args(argv) -> argparse.Namespace:
     p.add_argument("--token", help="pre-existing access token (skips login)")
     p.add_argument("--region", choices=["global", "cn"], default="global",
                    help="cloud region (default: global)")
-    p.add_argument("--device-type", choices=["Go2", "G1"], default="G1",
-                   help="AppName header to send (default: G1)")
+    p.add_argument("--device-type", choices=["Go2", "G1", "R1"], default="G1",
+                   help="robot family to sign requests as (default: G1). "
+                        "G1 and R1 share one Unitree Explorer account, so "
+                        "either lists both")
     p.add_argument("--sn", help="serial number to look up "
                                 "(if omitted, prints every bound device)")
     p.add_argument("-q", "--quiet", action="store_true",
@@ -167,7 +171,7 @@ def main(argv=None) -> int:
                         f"SN {d.sn} is bound but `dev.key` is empty — "
                         f"firmware is probably below the data2=3 cutover "
                         f"(G1 < 1.5.1 / Go2 < 1.1.15), in which case no "
-                        f"per-device key is needed."
+                        f"per-device key is needed. R1 is always data2=3."
                     )
                     return 1
                 if args.quiet:
