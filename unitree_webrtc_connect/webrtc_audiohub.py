@@ -10,7 +10,9 @@ from unitree_webrtc_connect.constants import AUDIO_API
 from unitree_webrtc_connect.webrtc_driver import UnitreeWebRTCConnection
 import asyncio
 
-CHUNK_SIZE = 61440
+# Base64 characters per upload request. 4096 is the value known to work
+# against the robot AudioHub API; larger values are unvalidated.
+CHUNK_SIZE = 4096
 
 class WebRTCAudioHub:
     def __init__(self, connection: UnitreeWebRTCConnection, logger: logging.Logger = None):
@@ -123,7 +125,7 @@ class WebRTCAudioHub:
         )
         return response
 
-    async def upload_audio_file(self, audiofile_path):
+    async def upload_audio_file(self, audiofile_path, chunk_size: int = CHUNK_SIZE):
         """Upload audio file (MP3 or WAV)"""
         # Convert MP3 to WAV if necessary
         if audiofile_path.endswith(".mp3"):
@@ -150,11 +152,10 @@ class WebRTCAudioHub:
             # Convert to base64
             b64_data = base64.b64encode(audio_data).decode('utf-8')
             
-            # Split into smaller chunks (4KB each)
-            chunk_size = 4096
+            # Split into base64 chunks
             chunks = [b64_data[i:i + chunk_size] for i in range(0, len(b64_data), chunk_size)]
             total_chunks = len(chunks)
-            
+
             self.logger.info(f"Splitting file into {total_chunks} chunks")
 
             # Send each chunk
@@ -170,7 +171,6 @@ class WebRTCAudioHub:
                     'file_md5': file_md5,
                     'create_time': int(time.time() * 1000)
                 }
-                print(json.dumps(parameter, ensure_ascii=True))
                 # Send the chunk
                 self.logger.info(f"Sending chunk {i}/{total_chunks}")
                 
@@ -214,7 +214,7 @@ class WebRTCAudioHub:
         )
         return response
 
-    async def upload_megaphone(self, audiofile_path):
+    async def upload_megaphone(self, audiofile_path, chunk_size: int = CHUNK_SIZE):
         """Upload audio file (MP3 or WAV)"""
         # Convert MP3 to WAV if necessary
         if audiofile_path.endswith(".mp3"):
@@ -234,15 +234,14 @@ class WebRTCAudioHub:
         try:
             # Calculate MD5 of the file
             file_md5 = hashlib.md5(audio_data).hexdigest()
-            
+
             # Convert to base64
             b64_data = base64.b64encode(audio_data).decode('utf-8')
-            
-            # Split into smaller chunks (4KB each)
-            chunk_size = 4096
+
+            # Split into base64 chunks
             chunks = [b64_data[i:i + chunk_size] for i in range(0, len(b64_data), chunk_size)]
             total_chunks = len(chunks)
-            
+
             self.logger.info(f"Splitting file into {total_chunks} chunks")
 
             # Send each chunk
@@ -253,7 +252,6 @@ class WebRTCAudioHub:
                     'current_block_index': i,
                     'total_block_number': total_chunks
                 }
-                print(json.dumps(parameter, ensure_ascii=True))
                 # Send the chunk
                 self.logger.info(f"Sending chunk {i}/{total_chunks}")
                 
