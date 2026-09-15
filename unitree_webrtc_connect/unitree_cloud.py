@@ -184,7 +184,10 @@ class UnitreeCloud:
         sign = hashlib.md5(f"{APP_SIGN_SECRET}{ts}{nonce}".encode()).hexdigest()
         return {
             **_BASE_HEADERS,
-            "AppTimezone": time.strftime("%Z") or "UTC",
+            # %Z is locale-dependent and returns non-ASCII names on localized
+            # systems (e.g. "中国标准时间" on Chinese Windows), which breaks
+            # latin-1 HTTP header encoding. %z is always "+HHMM".
+            "AppTimezone": time.strftime("%z") or "UTC",
             "AppTimestamp": ts,
             "AppNonce": nonce,
             "AppSign": sign,
