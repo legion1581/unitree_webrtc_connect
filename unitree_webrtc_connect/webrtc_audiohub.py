@@ -39,7 +39,7 @@ class WebRTCAudioHub:
 
     async def play_by_uuid(self, uuid):
         """Play audio by UUID"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['SELECT_START_PLAY'],
@@ -48,30 +48,33 @@ class WebRTCAudioHub:
                 })
             }
         )
+        return response
 
     async def pause(self):
         """Pause current audio playback"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['PAUSE'],
                 "parameter": json.dumps({})
             }
         )
+        return response
 
     async def resume(self):
         """Resume paused audio playback"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['UNSUSPEND'],
                 "parameter": json.dumps({})
             }
         )
+        return response
 
     async def set_play_mode(self, play_mode):
         """Set audio play mode (single_cycle, no_cycle, list_loop)"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['SET_PLAY_MODE'],
@@ -80,10 +83,11 @@ class WebRTCAudioHub:
                 })
             }
         )
+        return response
 
     async def rename_record(self, uuid, new_name):
         """Rename an audio record"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['SELECT_RENAME'],
@@ -93,10 +97,11 @@ class WebRTCAudioHub:
                 })
             }
         )
+        return response
 
     async def delete_record(self, uuid):
         """Delete an audio record"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['SELECT_DELETE'],
@@ -105,6 +110,7 @@ class WebRTCAudioHub:
                 })
             }
         )
+        return response
 
     async def get_play_mode(self):
         """Get current play mode"""
@@ -188,23 +194,25 @@ class WebRTCAudioHub:
 
     async def enter_megaphone(self):
         """Enter megaphone mode"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['ENTER_MEGAPHONE'],
                 "parameter": json.dumps({})
             }
         )
+        return response
 
     async def exit_megaphone(self):
         """Exit megaphone mode"""
-        await self.data_channel.pub_sub.publish_request_new(
+        response = await self.data_channel.pub_sub.publish_request_new(
             "rt/api/audiohub/request",
             {
                 "api_id": AUDIO_API['EXIT_MEGAPHONE'],
                 "parameter": json.dumps({})
             }
         )
+        return response
 
     async def upload_megaphone(self, audiofile_path):
         """Upload audio file (MP3 or WAV)"""
