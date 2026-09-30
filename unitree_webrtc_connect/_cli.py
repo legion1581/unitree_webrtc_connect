@@ -111,6 +111,11 @@ def _parse_args(argv) -> argparse.Namespace:
                    help="robot family to sign requests as (default: G1). "
                         "G1 and R1 share one Unitree Explorer account, so "
                         "either lists both")
+    p.add_argument("--impersonate", default=None,
+                   help="curl_cffi browser target for the TLS handshake "
+                        "(default: $UNITREE_CLOUD_IMPERSONATE or chrome120). "
+                        "Try another one, e.g. safari, if the cloud WAF "
+                        "blocks the login with HTTP 567")
     p.add_argument("--sn", help="serial number to look up "
                                 "(if omitted, prints every bound device)")
     p.add_argument("-q", "--quiet", action="store_true",
@@ -134,6 +139,7 @@ def main(argv=None) -> int:
         region=args.region,
         device_type=args.device_type,
         access_token=args.token or "",
+        impersonate=args.impersonate,
     )
 
     if args.email:

@@ -2,9 +2,12 @@
 Minimal Unitree cloud client used for the Remote (STA-T) WebRTC signaling
 flow and for fetching the per-device AES-128 key.
 
-Why curl_cffi?  The Unitree cloud is fronted by Cloudflare-style TLS / JA3
-fingerprinting. Plain `requests` gets blocked. `curl_cffi` impersonates a
-real Chrome handshake, which is what the Unitree apk does on the wire.
+Why curl_cffi?  The Unitree cloud is fronted by a WAF (Tencent EdgeOne)
+that looks at both the TLS / JA3 fingerprint and the request headers.
+`curl_cffi` impersonates a real browser handshake. The target defaults to
+`chrome120`; if the WAF starts rejecting it (HTTP 567 block page or an
+HTML JS challenge instead of JSON), pick another curl_cffi target with the
+`impersonate=` argument or the `UNITREE_CLOUD_IMPERSONATE` env var.
 
 Region and device_type are first-class parameters because the robot
 families hit different app-name headers on the same host — the Go2 apk
@@ -18,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -53,6 +57,16 @@ _BASE_HEADERS = {
     ),
 }
 
+# curl_cffi browser target for the TLS handshake. Overridable per client
+# (`UnitreeCloud(impersonate=...)`) or process-wide via the env var, which
+# also reaches the CLI and the Remote-flow helpers in util.py.
+DEFAULT_IMPERSONATE = "chrome120"
+IMPERSONATE_ENV_VAR = "UNITREE_CLOUD_IMPERSONATE"
+
+# EdgeOne answers a blocked request with this non-standard status and an
+# HTML page (lang=zh-CN) instead of the API's JSON.
+WAF_BLOCK_STATUS = 567
+
 VALID_REGIONS = ("global", "cn")
 VALID_DEVICE_TYPES = ("Go2", "G1", "R1")
 
@@ -78,6 +92,29 @@ class UnitreeCloudError(RuntimeError):
         self.action = action
         self.code = code
         self.msg = msg
+
+
+class UnitreeCloudBlockedError(UnitreeCloudError):
+    """Raised when the cloud's edge WAF rejects the request (HTTP 567 block
+    page, or an HTML/JS challenge where JSON was expected). Not an account
+    problem — it happens with any credentials. Usually fixed by switching
+    the TLS fingerprint (`impersonate`) or the network."""
+
+    def __init__(self, action: str, status_code: int, impersonate: str,
+                 request_id: str = ""):
+        ref = f" (EdgeOne request id {request_id})" if request_id else ""
+        msg = (
+            f"blocked by the Unitree cloud WAF: HTTP {status_code} with a "
+            f"non-JSON body{ref}. The request was not evaluated, so this is "
+            f"not a credentials problem. Retry with another curl_cffi "
+            f"impersonation target than {impersonate!r}, e.g. "
+            f"{IMPERSONATE_ENV_VAR}=safari (or UnitreeCloud(impersonate=...)), "
+            f"or from a different network."
+        )
+        super().__init__(action, status_code, msg)
+        self.status_code = status_code
+        self.impersonate = impersonate
+        self.request_id = request_id
 
 
 # ─── Data class ───────────────────────────────────────────────────────
@@ -113,7 +150,8 @@ class UnitreeCloud:
     """Talks to the Unitree cloud the same way the official apk does."""
 
     def __init__(self, region: str = "global", device_type: str = "Go2",
-                 access_token: str = "", refresh_token: str = ""):
+                 access_token: str = "", refresh_token: str = "",
+                 impersonate: Optional[str] = None):
         if region not in VALID_REGIONS:
             raise ValueError(
                 f"region must be one of {VALID_REGIONS}, got {region!r}"
@@ -127,8 +165,14 @@ class UnitreeCloud:
         self.base_url = BASE_URLS[region]
         self.access_token = access_token
         self.refresh_token = refresh_token
-        # Chrome impersonation — bypasses the JA3/TLS fingerprint filter.
-        self._session = cffi_requests.Session(impersonate="safari17_0")
+        # Browser impersonation — gets past the WAF's JA3/TLS fingerprint
+        # filter. Argument > env var > default.
+        self.impersonate = (
+            impersonate
+            or os.environ.get(IMPERSONATE_ENV_VAR)
+            or DEFAULT_IMPERSONATE
+        )
+        self._session = cffi_requests.Session(impersonate=self.impersonate)
 
     # ── header / sign helpers ─────────────────────────────────────────
 
@@ -148,6 +192,22 @@ class UnitreeCloud:
 
     # ── low-level request with one auto-refresh on 1001 ───────────────
 
+    def _json(self, resp, action: str) -> dict:
+        """Decode an API response, turning a WAF block page / challenge
+        into `UnitreeCloudBlockedError` instead of a bare HTTPError or
+        JSONDecodeError."""
+        blocked = UnitreeCloudBlockedError(
+            action, resp.status_code, self.impersonate,
+            resp.headers.get("eo-log-uuid", ""),
+        )
+        if resp.status_code == WAF_BLOCK_STATUS:
+            raise blocked
+        resp.raise_for_status()
+        try:
+            return resp.json()
+        except ValueError:  # HTML JS challenge served with a 200
+            raise blocked from None
+
     def _request(self, method: str, path: str, body: Optional[dict] = None) -> dict:
         url = self.base_url + path
         headers = self._headers()
@@ -159,8 +219,7 @@ class UnitreeCloud:
         else:
             raise ValueError(f"Unsupported HTTP method: {method}")
 
-        resp.raise_for_status()
-        result = resp.json()
+        result = self._json(resp, path)
 
         if result.get("code") == 1001 and self.refresh_token:
             if self._refresh():
@@ -169,8 +228,7 @@ class UnitreeCloud:
                     resp = self._session.get(url, params=body or {}, headers=headers)
                 else:
                     resp = self._session.post(url, data=body or {}, headers=headers)
-                resp.raise_for_status()
-                result = resp.json()
+                result = self._json(resp, path)
 
         return result
 
@@ -181,8 +239,7 @@ class UnitreeCloud:
             data={"refreshToken": self.refresh_token},
             headers=self._headers(),
         )
-        resp.raise_for_status()
-        result = resp.json()
+        result = self._json(resp, "token/refresh")
         if result.get("code") == 100 and result.get("data"):
             self.access_token = result["data"].get("accessToken", "")
             self.refresh_token = result["data"].get("refreshToken", self.refresh_token)

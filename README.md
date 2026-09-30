@@ -211,6 +211,14 @@ for d in cloud.list_devices():
     print(d.sn, d.alias, d.key)
 ```
 
+If the login fails with `UnitreeCloudBlockedError` (HTTP 567 / an HTML page instead of JSON), the cloud's WAF rejected the TLS fingerprint, not your credentials. Switch the curl_cffi impersonation target and retry:
+
+```sh
+UNITREE_CLOUD_IMPERSONATE=safari unitree-fetch-aes-key --email ...
+# or: unitree-fetch-aes-key --impersonate safari --email ...
+# or: UnitreeCloud(region="global", device_type="G1", impersonate="safari")
+```
+
 ### Typed errors
 
 When you supply the wrong / missing key, the SDK raises typed exceptions you can catch instead of relying on stack traces:

@@ -65,6 +65,7 @@ from .msgs.pub_sub import WebRTCDataChannelPubSub  # noqa: E402
 from .unitree_cloud import (  # noqa: E402
     UnitreeCloud,
     UnitreeCloudError,
+    UnitreeCloudBlockedError,
     RobotDevice,
     fetch_aes_key,
 )
@@ -98,6 +99,7 @@ __all__ = [
     "discover_ip_sn",
     "UnitreeCloud",
     "UnitreeCloudError",
+    "UnitreeCloudBlockedError",
     "RobotDevice",
     "fetch_aes_key",
     "AesKeyRequiredError",
