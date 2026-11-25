@@ -1,45 +1,53 @@
-import logging
+"""
+Play local audio files through the robot speaker over the WebRTC audio
+track, one after another on a single connection.
+
+QueuedAudioTrack keeps the outgoing audio stream continuous (silence when
+nothing is queued) and starts with a few seconds of silence: the robot drops
+the first seconds of a stream that starts after an idle period, which used
+to make the 2nd/3rd run of this example silent (#28).
+"""
 import asyncio
-import os 
+import logging
+import os
 import sys
+
+from unitree_webrtc_connect import QueuedAudioTrack
 from unitree_webrtc_connect.webrtc_driver import UnitreeWebRTCConnection, WebRTCConnectionMethod
-from aiortc.contrib.media import MediaPlayer
 
-
-# Enable logging for debugging
 logging.basicConfig(level=logging.FATAL)
 
 ROBOT_IP = os.environ.get("UNITREE_ROBOT_IP", "192.168.8.181")
+AES_128_KEY = os.environ.get("UNITREE_AES_128_KEY")  # needed on Go2 >= 1.1.15
+
+HERE = os.path.dirname(__file__)
+FILES = [
+    os.path.join(HERE, "dog-barking.wav"),
+    os.path.join(HERE, "dora-doradura-mp3.mp3"),
+]
+
 
 async def main():
+    conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip=ROBOT_IP, aes_128_key=AES_128_KEY)
+    # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, serialNumber="B42D2000XXXXXXXX")
+    # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.Remote, serialNumber="B42D2000XXXXXXXX", username="email@gmail.com", password="pass")
+    # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalAP)
+    await conn.connect()
+
+    player = QueuedAudioTrack()  # default 9 s silent warm-up before the first file
+    conn.pc.addTrack(player)
     try:
-        # Choose a connection method (uncomment the correct one)
-        conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, ip=ROBOT_IP)
-        # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalSTA, serialNumber="B42D2000XXXXXXXX")
-        # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.Remote, serialNumber="B42D2000XXXXXXXX", username="email@gmail.com", password="pass")
-        # conn = UnitreeWebRTCConnection(WebRTCConnectionMethod.LocalAP)
-        
-        await conn.connect()
+        for path in FILES:
+            print(f"Playing {os.path.basename(path)}")
+            await player.play(path)  # returns once the whole file was sent
+        await asyncio.sleep(1)       # let the tail reach the speaker
+    finally:
+        await conn.disconnect()
 
-        
-        mp3_path = os.path.join(os.path.dirname(__file__), "dora-doradura-mp3.mp3")
-        
-        logging.info(f"Playing MP3: {mp3_path}")
-        player = MediaPlayer(mp3_path)  # Use MediaPlayer for MP3
-        audio_track = player.audio  # Get the audio track from the player
-        conn.pc.addTrack(audio_track)  # Add the audio track to the WebRTC connection
-
-        await asyncio.sleep(3600)  # Keep the program running to handle events
-
-    except ValueError as e:
-        # Log any value errors that occur during the process.
-        logging.error(f"An error occurred: {e}")
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Handle Ctrl+C to exit gracefully.
         print("\nProgram interrupted by user")
         sys.exit(0)
-

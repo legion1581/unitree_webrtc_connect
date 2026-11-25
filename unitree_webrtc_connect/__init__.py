@@ -62,6 +62,7 @@ from .constants import (  # noqa: E402
 )
 from .multicast_scanner import discover_ip_sn  # noqa: E402
 from .msgs.pub_sub import WebRTCDataChannelPubSub  # noqa: E402
+from .webrtc_audio import QueuedAudioTrack  # noqa: E402
 from .unitree_cloud import (  # noqa: E402
     UnitreeCloud,
     UnitreeCloudError,
@@ -83,6 +84,7 @@ __all__ = [
     "WebRTCConnectionMethod",
     "WebRTCDataChannel",
     "WebRTCDataChannelPubSub",
+    "QueuedAudioTrack",
     "DATA_CHANNEL_TYPE",
     "RTC_TOPIC",
     "SPORT_CMD",
