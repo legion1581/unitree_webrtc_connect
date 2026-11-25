@@ -2,10 +2,11 @@
 Play local audio files through the robot speaker over the WebRTC audio
 track, one after another on a single connection.
 
-QueuedAudioTrack keeps the outgoing audio stream continuous (silence when
-nothing is queued) and starts with a few seconds of silence: the robot drops
-the first seconds of a stream that starts after an idle period, which used
-to make the 2nd/3rd run of this example silent (#28).
+A fresh connection starts with a 9-second silent warm-up because Go2 firmware
+can discard up to about 8 seconds of a new stream (#28). Keep the connection
+and track alive between files: QueuedAudioTrack sends silence while idle, so
+later files play without another warm-up. For one-shot playback without this
+warm-up, use webrtc_audio_player.py (AudioHub upload and play) instead.
 """
 import asyncio
 import logging

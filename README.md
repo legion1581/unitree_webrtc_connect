@@ -239,6 +239,33 @@ except AesKeyRejectedError as e:
     ...
 ```
 
+## Go2 Audio Playback
+
+For one-shot sound effects, use
+`examples/go2/audio/mp3_player/webrtc_audio_player.py`: it uploads the file to
+AudioHub and plays it by UUID, without the WebRTC streaming warm-up described
+below.
+
+For live audio or several files on one streaming connection, use
+`QueuedAudioTrack` and keep the connection open between files:
+
+```python
+player = QueuedAudioTrack()
+conn.pc.addTrack(player)
+await player.play("bark.wav")
+await player.play("song.mp3")
+```
+
+Go2 firmware can discard up to about 8 seconds at the start of a fresh WebRTC
+audio stream. `QueuedAudioTrack` therefore sends 9 seconds of silence before
+the first file by default. This is a **one-time cost per connection**, not a
+delay between files: the track continues sending silence while idle, so later
+calls to `play()` start immediately. `warmup` is configurable, but shortening
+it can truncate the first file on a fresh connection. `play()` returns when
+the file has been sent; allow playback latency before disconnecting.
+
+See `examples/go2/audio/mp3_player/play_mp3.py` for a complete example.
+
 ## Examples
 
 Examples are organized by robot model under the `/examples` directory.
@@ -302,6 +329,7 @@ from unitree_webrtc_connect import (
     WebRTCConnectionMethod,
     WebRTCDataChannel,
     WebRTCDataChannelPubSub,
+    QueuedAudioTrack,
     DATA_CHANNEL_TYPE,
     RTC_TOPIC,
     SPORT_CMD,

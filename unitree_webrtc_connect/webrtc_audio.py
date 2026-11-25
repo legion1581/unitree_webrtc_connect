@@ -59,6 +59,11 @@ class QueuedAudioTrack(MediaStreamTrack):
     * never stopping: when the queue is empty it sends silence, so files
       queued later play immediately and completely.
 
+    The warm-up is needed only once per connection. Keep the connection and
+    track alive between files; shortening ``warmup`` can truncate the first
+    file. For one-shot playback without a warm-up, upload the file to AudioHub
+    and play it by UUID instead (see ``webrtc_audio_player.py``).
+
     Usage::
 
         player = QueuedAudioTrack()
