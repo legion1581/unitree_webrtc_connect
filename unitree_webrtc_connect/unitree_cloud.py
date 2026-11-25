@@ -128,7 +128,7 @@ class UnitreeCloud:
         self.access_token = access_token
         self.refresh_token = refresh_token
         # Chrome impersonation — bypasses the JA3/TLS fingerprint filter.
-        self._session = cffi_requests.Session(impersonate="chrome120")
+        self._session = cffi_requests.Session(impersonate="safari17_0")
 
     # ── header / sign helpers ─────────────────────────────────────────
 
