@@ -5,9 +5,10 @@ flow and for fetching the per-device AES-128 key.
 Why curl_cffi?  The Unitree cloud is fronted by a WAF (Tencent EdgeOne)
 that looks at both the TLS / JA3 fingerprint and the request headers.
 `curl_cffi` impersonates a real browser handshake. The target defaults to
-`chrome120`; if the WAF starts rejecting it (HTTP 567 block page or an
-HTML JS challenge instead of JSON), pick another curl_cffi target with the
-`impersonate=` argument or the `UNITREE_CLOUD_IMPERSONATE` env var.
+`safari17_0` (the WAF began rejecting `chrome120` in 2026-09); if it starts
+rejecting that too (HTTP 567 block page or an HTML JS challenge instead of
+JSON), pick another curl_cffi target with the `impersonate=` argument or
+the `UNITREE_CLOUD_IMPERSONATE` env var.
 
 Region and device_type are first-class parameters because the robot
 families hit different app-name headers on the same host — the Go2 apk
@@ -60,7 +61,7 @@ _BASE_HEADERS = {
 # curl_cffi browser target for the TLS handshake. Overridable per client
 # (`UnitreeCloud(impersonate=...)`) or process-wide via the env var, which
 # also reaches the CLI and the Remote-flow helpers in util.py.
-DEFAULT_IMPERSONATE = "chrome120"
+DEFAULT_IMPERSONATE = "safari17_0"
 IMPERSONATE_ENV_VAR = "UNITREE_CLOUD_IMPERSONATE"
 
 # EdgeOne answers a blocked request with this non-standard status and an
@@ -103,12 +104,13 @@ class UnitreeCloudBlockedError(UnitreeCloudError):
     def __init__(self, action: str, status_code: int, impersonate: str,
                  request_id: str = ""):
         ref = f" (EdgeOne request id {request_id})" if request_id else ""
+        alt = "chrome120" if impersonate.startswith("safari") else "safari17_0"
         msg = (
             f"blocked by the Unitree cloud WAF: HTTP {status_code} with a "
             f"non-JSON body{ref}. The request was not evaluated, so this is "
             f"not a credentials problem. Retry with another curl_cffi "
             f"impersonation target than {impersonate!r}, e.g. "
-            f"{IMPERSONATE_ENV_VAR}=safari (or UnitreeCloud(impersonate=...)), "
+            f"{IMPERSONATE_ENV_VAR}={alt} (or UnitreeCloud(impersonate=...)), "
             f"or from a different network."
         )
         super().__init__(action, status_code, msg)

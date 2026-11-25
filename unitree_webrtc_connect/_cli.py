@@ -113,8 +113,8 @@ def _parse_args(argv) -> argparse.Namespace:
                         "either lists both")
     p.add_argument("--impersonate", default=None,
                    help="curl_cffi browser target for the TLS handshake "
-                        "(default: $UNITREE_CLOUD_IMPERSONATE or chrome120). "
-                        "Try another one, e.g. safari, if the cloud WAF "
+                        "(default: $UNITREE_CLOUD_IMPERSONATE or safari17_0). "
+                        "Try another one, e.g. chrome120, if the cloud WAF "
                         "blocks the login with HTTP 567")
     p.add_argument("--sn", help="serial number to look up "
                                 "(if omitted, prints every bound device)")

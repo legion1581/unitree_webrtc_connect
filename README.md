@@ -211,12 +211,12 @@ for d in cloud.list_devices():
     print(d.sn, d.alias, d.key)
 ```
 
-If the login fails with `UnitreeCloudBlockedError` (HTTP 567 / an HTML page instead of JSON), the cloud's WAF rejected the TLS fingerprint, not your credentials. Switch the curl_cffi impersonation target and retry:
+If the login fails with `UnitreeCloudBlockedError` (HTTP 567 / an HTML page instead of JSON), the cloud's WAF rejected the TLS fingerprint, not your credentials. Switch the curl_cffi impersonation target (default `safari17_0`) and retry:
 
 ```sh
-UNITREE_CLOUD_IMPERSONATE=safari unitree-fetch-aes-key --email ...
-# or: unitree-fetch-aes-key --impersonate safari --email ...
-# or: UnitreeCloud(region="global", device_type="G1", impersonate="safari")
+UNITREE_CLOUD_IMPERSONATE=chrome120 unitree-fetch-aes-key --email ...
+# or: unitree-fetch-aes-key --impersonate chrome120 --email ...
+# or: UnitreeCloud(region="global", device_type="G1", impersonate="chrome120")
 ```
 
 ### Typed errors
