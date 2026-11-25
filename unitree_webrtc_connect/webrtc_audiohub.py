@@ -8,11 +8,11 @@ import hashlib
 from pydub import AudioSegment
 from unitree_webrtc_connect.constants import AUDIO_API
 from unitree_webrtc_connect.webrtc_driver import UnitreeWebRTCConnection
-import asyncio
 
-# Base64 characters per upload request. 4096 is the value known to work
-# against the robot AudioHub API; larger values are unvalidated.
-CHUNK_SIZE = 4096
+# Base64 characters per upload request. The robot's audio_hub just
+# concatenates block_content until the last block, so it imposes no limit;
+# 16384 is what the official Unitree app sends (StringsKt.chunked(b64, 16384)).
+CHUNK_SIZE = 16384
 
 class WebRTCAudioHub:
     def __init__(self, connection: UnitreeWebRTCConnection, logger: logging.Logger = None):
@@ -181,10 +181,7 @@ class WebRTCAudioHub:
                         "parameter": json.dumps(parameter, ensure_ascii=True)
                     }
                 )
-                
-                # Wait a small amount between chunks
-                await asyncio.sleep(0.1)
-                
+
             self.logger.info("All chunks sent")
             return response
             
@@ -262,10 +259,7 @@ class WebRTCAudioHub:
                         "parameter": json.dumps(parameter, ensure_ascii=True)
                     }
                 )
-                
-                # Wait a small amount between chunks
-                await asyncio.sleep(0.1)
-                
+
             self.logger.info("All chunks sent")
             return response
         except Exception as e:
