@@ -23,9 +23,11 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Optional
 
 from curl_cffi import requests as cffi_requests
@@ -119,6 +121,60 @@ class UnitreeCloudBlockedError(UnitreeCloudError):
         self.request_id = request_id
 
 
+_IANA_TZ_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+)+$")
+
+
+def _iana_timezone() -> Optional[str]:
+    """Best-effort IANA zone name ("Europe/Berlin") from the stdlib, or None."""
+
+    def valid(name: str) -> bool:
+        return bool(_IANA_TZ_RE.match(name)) and not name.startswith("posix")
+
+    def from_zoneinfo_path(path: str) -> Optional[str]:
+        try:  # /etc/localtime -> /usr/share/zoneinfo/Europe/Berlin
+            target = os.path.realpath(path)
+        except OSError:
+            return None
+        if "zoneinfo/" in target:
+            name = target.rsplit("zoneinfo/", 1)[1]
+            return name if valid(name) else None
+        return None
+
+    tz = os.environ.get("TZ", "").lstrip(":")
+    if tz:  # TZ decides the process's zone, so it wins even if not IANA
+        if tz.startswith("/"):
+            return from_zoneinfo_path(tz)
+        return tz if valid(tz) else None
+    name = from_zoneinfo_path("/etc/localtime")  # Linux / macOS
+    if name:
+        return name
+    try:  # Debian / Ubuntu
+        with open("/etc/timezone", encoding="ascii") as f:
+            name = f.read().strip()
+        return name if valid(name) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _app_timezone() -> str:
+    """Value for the AppTimezone header.
+
+    The official app sends `TimeZone.getDefault().getID()`, an IANA name
+    like "Asia/Shanghai", so send that when the OS exposes it. Otherwise
+    (Windows) fall back to the `%Z` abbreviation when it is ASCII, or a
+    "+HHMM" offset computed by Python: on localized Windows `%Z` is the
+    translated full name ("中国标准时间", "Mitteleuropäische Sommerzeit"),
+    which can't be encoded as a latin-1 HTTP header and kills every
+    request (#58, #65), and the platform strftime `%z` isn't portable."""
+    name = _iana_timezone()
+    if name:
+        return name
+    name = time.strftime("%Z")
+    if name and all(ord(c) < 128 for c in name):
+        return name
+    return datetime.now().astimezone().strftime("%z") or "UTC"
+
+
 # ─── Data class ───────────────────────────────────────────────────────
 
 @dataclass
@@ -184,10 +240,7 @@ class UnitreeCloud:
         sign = hashlib.md5(f"{APP_SIGN_SECRET}{ts}{nonce}".encode()).hexdigest()
         return {
             **_BASE_HEADERS,
-            # %Z is locale-dependent and returns non-ASCII names on localized
-            # systems (e.g. "中国标准时间" on Chinese Windows), which breaks
-            # latin-1 HTTP header encoding. %z is always "+HHMM".
-            "AppTimezone": time.strftime("%z") or "UTC",
+            "AppTimezone": _app_timezone(),
             "AppTimestamp": ts,
             "AppNonce": nonce,
             "AppSign": sign,
